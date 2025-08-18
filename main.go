@@ -5,32 +5,50 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
 
+const (
+	localHeaderSize = 30
+	zip64HeadSize   = 20
+)
+
+var (
+	zipMagicNumber = []byte{80, 75, 3, 4}
+	zip64Marker    = []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+)
+
 type LocalHeader struct {
-	Version int
-	Flags []byte
-	IsZIP64 bool
-	Name string
-	CompressedSize int
+	Version          int
+	Flags            []byte
+	IsZIP64          bool
+	Name             string
+	CompressedSize   int
 	UncompressedSize int
-	Content []byte
+	Content          []byte
+}
+
+func readExact(r io.Reader, destination []byte) error {
+	n, err := io.ReadFull(r, destination)
+	if err != nil {
+		return fmt.Errorf("failed to read %d bytes: %w", len(destination), err)
+	}
+	if n != len(destination) {
+		return fmt.Errorf("expected %d bytes, got %d", len(destination), n)
+	}
+	return nil
 }
 
 func readHeader(f *os.File) (*LocalHeader, error) {
-	headerBytes := make([]byte, 30)
-	num_read, err := f.Read(headerBytes)
+	headerBytes := make([]byte, localHeaderSize)
+	err := readExact(f, headerBytes)
 	if err != nil {
-		return nil, errors.New("Unable to read header")
+		return nil, fmt.Errorf("unable to read header: %w", err)
 	}
 
-	if num_read != 30 {
-		return nil, errors.New("Did not read initial header info")
-	}
-
-	if !bytes.Equal([]byte{80, 75, 3, 4}, headerBytes[0:4]) {
+	if !bytes.Equal(zipMagicNumber, headerBytes[0:4]) {
 		return nil, errors.New("Magic number missing")
 	}
 
@@ -38,7 +56,7 @@ func readHeader(f *os.File) (*LocalHeader, error) {
 	header.Version = int(binary.LittleEndian.Uint16(headerBytes[4:6]))
 	header.Flags = headerBytes[6:8]
 
-	if bytes.Equal(headerBytes[18:26], []byte{255, 255, 255, 255, 255, 255, 255, 255}) {
+	if bytes.Equal(headerBytes[18:26], zip64Marker) {
 		header.IsZIP64 = true
 	} else {
 		header.IsZIP64 = false
@@ -48,41 +66,27 @@ func readHeader(f *os.File) (*LocalHeader, error) {
 
 	filenameLength := int(binary.LittleEndian.Uint16(headerBytes[26:30]))
 	filenameBytes := make([]byte, filenameLength)
-	nameBytesRead, err := f.Read(filenameBytes)
+	err = readExact(f, filenameBytes)
 	if err != nil {
-		return nil, errors.New("Unable to read filename")
-	}
-
-	if nameBytesRead != filenameLength {
-		return nil, fmt.Errorf("Expected %d bytes, got %d", filenameLength, nameBytesRead)
+		return nil, fmt.Errorf("unable to read filename: %w", err)
 	}
 
 	header.Name = string(filenameBytes[:])
 
 	if header.IsZIP64 {
 		zip64FieldHeader := make([]byte, 20)
-		z64BytesRead, err := f.Read(zip64FieldHeader)
-
+		err = readExact(f, zip64FieldHeader)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to read ZIP64 header: %w", err)
 		}
-
-		if z64BytesRead != 20 {
-			return nil, fmt.Errorf("Expected %d bytes from ZIP64 header, got %d", 20, z64BytesRead)
-		}
-
 		header.UncompressedSize = int(binary.LittleEndian.Uint64(zip64FieldHeader[4:12]))
 		header.CompressedSize = int(binary.LittleEndian.Uint64(zip64FieldHeader[12:20]))
 	}
 
 	header.Content = make([]byte, header.CompressedSize)
-	contentRead, err := f.Read(header.Content)
+	err = readExact(f, header.Content)
 	if err != nil {
-			return nil, err
-	}
-
-	if contentRead != header.CompressedSize {
-		return nil, fmt.Errorf("Expected %d bytes from content, got %d", header.CompressedSize, contentRead)
+		return nil, fmt.Errorf("unable to read content: %w", err)
 	}
 
 	return &header, nil
@@ -108,5 +112,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println(string(header.Content[:]))
+	fmt.Printf("%+v\n", header)
 }
