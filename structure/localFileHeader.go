@@ -40,6 +40,8 @@ var (
 	zip64Marker    = []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 )
 
+var ErrNoMoreHeaders = errors.New("no more headers")
+
 type LocalHeader struct {
 	Version           int
 	Flags             []byte
@@ -65,7 +67,7 @@ func readHeader(r io.Reader) (*LocalHeader, error) {
 	}
 
 	if !bytes.Equal(zipMagicNumber, headerBytes[0:4]) {
-		return nil, errors.New("Magic number missing")
+		return nil, ErrNoMoreHeaders
 	}
 
 	header := LocalHeader{}

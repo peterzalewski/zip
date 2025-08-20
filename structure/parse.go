@@ -1,6 +1,7 @@
 package structure
 
 import (
+	"errors"
 	"fmt"
 	"io"
 )
@@ -21,7 +22,11 @@ func Parse(r io.ReadSeeker) ([]LocalHeader, error) {
 	for {
 		header, err := readHeader(r)
 		if err != nil {
-			break
+			if errors.Is(err, ErrNoMoreHeaders) {
+				break
+			} else {
+				return nil, err
+			}
 		}
 		headers = append(headers, *header)
 	}
