@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -52,6 +52,10 @@ type LocalHeader struct {
 	UncompressedSize  int
 	ExtraField        []byte
 	Content           []byte
+}
+
+func (header LocalHeader) String() string {
+	return fmt.Sprintf("LocalHeader{Name:%q, Size:%d->%d, Compression:%d}", header.Name, header.UncompressedSize, header.CompressedSize, header.CompressionMethod)
 }
 
 func readExact(r io.Reader, destination []byte) error {
@@ -137,25 +141,22 @@ func readHeader(f *os.File) (*LocalHeader, error) {
 }
 
 func main() {
-	abspath, err := filepath.Abs("./test.zip")
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	flag.Parse()
 
-	f, err := os.Open(abspath)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	for _, filename := range flag.Args() {
+		f, err := os.Open(filename)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 
-	defer f.Close()
-	header, err := readHeader(f)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+		defer f.Close()
+		header, err := readHeader(f)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 
-	fmt.Printf("%+v\n", header)
-	fmt.Println(string(header.Content))
+		fmt.Printf("%+v\n", header)
+	}
 }
