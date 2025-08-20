@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"petezalew.ski/zip/structure"
+	"petezalew.ski/zip/zipfile"
 )
 
 func main() {
@@ -19,7 +19,7 @@ func main() {
 		}
 
 		defer f.Close()
-		headers, err := structure.Parse(f)
+		headers, err := zipfile.Parse(f)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
