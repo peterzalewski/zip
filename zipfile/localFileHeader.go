@@ -9,7 +9,6 @@ import (
 	"time"
 )
 
-
 type CompressionMethod int
 
 const (
@@ -56,10 +55,10 @@ type LocalHeader struct {
 }
 
 func (header LocalHeader) String() string {
-	return fmt.Sprintf("LocalHeader{Name:%q, Size:%d->%d, Compression:%d}", header.Name, header.UncompressedSize, header.CompressedSize, header.CompressionMethod)
+	return fmt.Sprintf("LocalHeader{Name:%q, Flags:%q, Extra:%q, Size:%d->%d, Compression:%d}", header.Name, header.Flags, header.ExtraField, header.UncompressedSize, header.CompressedSize, header.CompressionMethod)
 }
 
-func readHeader(r io.Reader) (*LocalHeader, error) {
+func readHeader(r io.ReadSeeker) (*LocalHeader, error) {
 	headerBytes := make([]byte, localHeaderSize)
 	err := readExact(r, headerBytes)
 	if err != nil {
@@ -67,6 +66,10 @@ func readHeader(r io.Reader) (*LocalHeader, error) {
 	}
 
 	if !bytes.Equal(zipMagicNumber, headerBytes[0:4]) {
+		_, err := r.Seek(-1*localHeaderSize, io.SeekCurrent)
+		if err != nil {
+			return nil, fmt.Errorf("unable to rewind local header after reaching end: %w", err)
+		}
 		return nil, ErrNoMoreHeaders
 	}
 

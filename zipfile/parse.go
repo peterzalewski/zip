@@ -6,6 +6,14 @@ import (
 	"io"
 )
 
+type ZipFile struct {
+	LocalHeaders     []LocalHeader
+	CentralDirectory []CentralDirectoryFileHeader
+	EndRecord        EndOfCentralDirectoryRecord
+}
+
+var ErrDataAfterEndRecord = errors.New("unexpected data at end of file")
+
 func readExact(r io.Reader, destination []byte) error {
 	n, err := io.ReadFull(r, destination)
 	if err != nil {
@@ -17,7 +25,7 @@ func readExact(r io.Reader, destination []byte) error {
 	return nil
 }
 
-func Parse(r io.ReadSeeker) ([]LocalHeader, error) {
+func Parse(r io.ReadSeeker) (*ZipFile, error) {
 	var headers []LocalHeader
 	for {
 		header, err := readHeader(r)
@@ -30,5 +38,29 @@ func Parse(r io.ReadSeeker) ([]LocalHeader, error) {
 		}
 		headers = append(headers, *header)
 	}
-	return headers, nil
+
+	var cdfhs []CentralDirectoryFileHeader
+	for {
+		cdfh, err := readCentralDirectoryFileHeader(r)
+		if err != nil {
+			if errors.Is(err, ErrNoMoreCDFHs) {
+				break
+			} else {
+				return nil, err
+			}
+		}
+		cdfhs = append(cdfhs, *cdfh)
+	}
+
+	eocdr, err := readEndOfCentralDirectoryRecord(r)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = r.Read(make([]byte, 1))
+	if !errors.Is(err, io.EOF) {
+		return nil, ErrDataAfterEndRecord
+	}
+
+	return &ZipFile{LocalHeaders: headers, CentralDirectory: cdfhs, EndRecord: *eocdr}, nil
 }

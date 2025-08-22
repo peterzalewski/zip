@@ -19,14 +19,18 @@ func main() {
 		}
 
 		defer f.Close()
-		headers, err := zipfile.Parse(f)
+		zf, err := zipfile.Parse(f)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 
-		for _, header := range headers {
+		for _, header := range zf.LocalHeaders {
 			fmt.Printf("%+v\n", header)
 		}
+		for _, cdfh := range zf.CentralDirectory {
+			fmt.Printf("%+v\n", cdfh)
+		}
+		fmt.Printf("%+v\n", zf.EndRecord)
 	}
 }
