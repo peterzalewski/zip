@@ -1,6 +1,7 @@
 package zipfile
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -26,40 +27,39 @@ func readExact(r io.Reader, destination []byte) error {
 }
 
 func Parse(r io.ReadSeeker) (*ZipFile, error) {
-	var headers []LocalHeader
-	for {
-		header, err := readHeader(r)
-		if err != nil {
-			if errors.Is(err, ErrNoMoreHeaders) {
-				break
-			} else {
-				return nil, err
-			}
-		}
-		headers = append(headers, *header)
+	fileSize, err := r.Seek(0, io.SeekEnd)
+	if err != nil {
+		return nil, fmt.Errorf("unable to determine file size: %w", err)
 	}
 
-	var cdfhs []CentralDirectoryFileHeader
-	for {
-		cdfh, err := readCentralDirectoryFileHeader(r)
-		if err != nil {
-			if errors.Is(err, ErrNoMoreCDFHs) {
-				break
-			} else {
-				return nil, err
-			}
-		}
-		cdfhs = append(cdfhs, *cdfh)
-	}
-
+	seekBeginning := min(MaxEndOfCentralDirectoryRecordSize, fileSize)
+	r.Seek(-1*seekBeginning, io.SeekEnd)
+	possibleEndRecordBytes := make([]byte, MaxEndOfCentralDirectoryRecordSize)
+	_, err = r.Read(possibleEndRecordBytes)
+	recordIndex := int64(bytes.LastIndex(possibleEndRecordBytes, EndOfCentralDirectoryRecordMagicNumber))
+	r.Seek(-1*(seekBeginning-recordIndex), io.SeekCurrent)
 	eocdr, err := readEndOfCentralDirectoryRecord(r)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = r.Read(make([]byte, 1))
-	if !errors.Is(err, io.EOF) {
-		return nil, ErrDataAfterEndRecord
+	r.Seek(0, io.SeekStart)
+	var headers []LocalHeader
+	for i := 0; i < eocdr.NumberOfRecords; i++ {
+		header, err := readHeader(r)
+		if err != nil {
+			return nil, err
+		}
+		headers = append(headers, *header)
+	}
+
+	var cdfhs []CentralDirectoryFileHeader
+	for i := 0; i < eocdr.NumberOfRecords; i++ {
+		cdfh, err := readCentralDirectoryFileHeader(r)
+		if err != nil {
+			return nil, err
+		}
+		cdfhs = append(cdfhs, *cdfh)
 	}
 
 	return &ZipFile{LocalHeaders: headers, CentralDirectory: cdfhs, EndRecord: *eocdr}, nil

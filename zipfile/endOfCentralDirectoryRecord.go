@@ -9,11 +9,12 @@ import (
 )
 
 const (
-	endOfCentralDirectoryRecordSize = 22
+	endOfCentralDirectoryRecordSize    = 22
+	MaxEndOfCentralDirectoryRecordSize = endOfCentralDirectoryRecordSize + 1<<16
 )
 
 var (
-	endOfCentralDirectoryRecordMagicNumber = []byte{0x50, 0x4B, 0x05, 0x06}
+	EndOfCentralDirectoryRecordMagicNumber = []byte{0x50, 0x4B, 0x05, 0x06}
 )
 
 var ErrUnexpectedEndOfZipFile = errors.New("reached end of zip file before eocdr")
@@ -34,7 +35,7 @@ func readEndOfCentralDirectoryRecord(r io.Reader) (*EndOfCentralDirectoryRecord,
 		return nil, fmt.Errorf("unable to read end record: %w", err)
 	}
 
-	if !bytes.Equal(endOfCentralDirectoryRecordMagicNumber, recordBytes[0:4]) {
+	if !bytes.Equal(EndOfCentralDirectoryRecordMagicNumber, recordBytes[0:4]) {
 		return nil, ErrUnexpectedEndOfZipFile
 	}
 
