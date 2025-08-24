@@ -2,6 +2,7 @@ package zipfile
 
 import (
 	"bytes"
+	"compress/flate"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -40,6 +41,7 @@ var (
 )
 
 var ErrNoMoreHeaders = errors.New("no more headers")
+var ErrCannotDecompress = errors.New("cannot decompress file")
 
 type LocalHeader struct {
 	Version           int
@@ -52,6 +54,22 @@ type LocalHeader struct {
 	UncompressedSize  int
 	ExtraField        []byte
 	Content           []byte
+}
+
+func (header LocalHeader) GetContent() (string, error) {
+	switch header.CompressionMethod {
+	case NoCompression:
+		return string(header.Content[:]), nil
+	case Deflated:
+		r := flate.NewReader(bytes.NewReader(header.Content))
+		contentBytes := make([]byte, header.UncompressedSize)
+		_, err := r.Read(contentBytes)
+		if err != nil {
+			return "", err
+		}
+		return string(contentBytes[:]), nil
+	}
+	return "", ErrCannotDecompress
 }
 
 func (header LocalHeader) String() string {

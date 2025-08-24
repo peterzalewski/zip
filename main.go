@@ -27,10 +27,7 @@ func main() {
 
 		for _, header := range zf.LocalHeaders {
 			fmt.Printf("%+v\n", header)
+			fmt.Println(header.GetContent())
 		}
-		for _, cdfh := range zf.CentralDirectory {
-			fmt.Printf("%+v\n", cdfh)
-		}
-		fmt.Printf("%+v\n", zf.EndRecord)
 	}
 }
