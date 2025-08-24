@@ -47,22 +47,13 @@ func Parse(r io.ReadSeeker) (*ZipFile, error) {
 		return nil, ErrCannotFindEndRecord
 	}
 
-	r.Seek(fileSize - seekBeginning + recordIndex, io.SeekStart)
+	r.Seek(fileSize-seekBeginning+recordIndex, io.SeekStart)
 	eocdr, err := readEndOfCentralDirectoryRecord(r)
 	if err != nil {
 		return nil, err
 	}
 
-	r.Seek(0, io.SeekStart)
-	var headers []LocalHeader
-	for i := 0; i < eocdr.NumberOfRecords; i++ {
-		header, err := readHeader(r)
-		if err != nil {
-			return nil, err
-		}
-		headers = append(headers, *header)
-	}
-
+	r.Seek(eocdr.CentralDirectoryOffset, io.SeekStart)
 	var cdfhs []CentralDirectoryFileHeader
 	for i := 0; i < eocdr.NumberOfRecords; i++ {
 		cdfh, err := readCentralDirectoryFileHeader(r)
@@ -70,6 +61,16 @@ func Parse(r io.ReadSeeker) (*ZipFile, error) {
 			return nil, err
 		}
 		cdfhs = append(cdfhs, *cdfh)
+	}
+
+	var headers []LocalHeader
+	for _, cdfh := range cdfhs {
+		r.Seek(cdfh.LocalHeadOffset, io.SeekStart)
+		header, err := readHeader(r)
+		if err != nil {
+			return nil, err
+		}
+		headers = append(headers, *header)
 	}
 
 	return &ZipFile{LocalHeaders: headers, CentralDirectory: cdfhs, EndRecord: *eocdr}, nil

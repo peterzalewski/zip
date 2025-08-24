@@ -19,9 +19,10 @@ var (
 var ErrNoMoreCDFHs = errors.New("no more directory headers")
 
 type CentralDirectoryFileHeader struct {
-	FileName   string
-	ExtraField []byte
-	Comment    string
+	LocalHeadOffset int64
+	FileName        string
+	ExtraField      []byte
+	Comment         string
 }
 
 func (cdfh CentralDirectoryFileHeader) String() string {
@@ -47,7 +48,9 @@ func readCentralDirectoryFileHeader(r io.ReadSeeker) (*CentralDirectoryFileHeade
 	extraFieldLength := int(binary.LittleEndian.Uint16(headerBytes[30:32]))
 	commentLength := int(binary.LittleEndian.Uint16(headerBytes[32:34]))
 
-	cdfh := CentralDirectoryFileHeader{}
+	cdfh := CentralDirectoryFileHeader{
+		LocalHeadOffset: int64(binary.LittleEndian.Uint32(headerBytes[42:46])),
+	}
 
 	filenameBytes := make([]byte, filenameLength)
 	err = readExact(r, filenameBytes)

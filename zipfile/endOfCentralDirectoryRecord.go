@@ -20,8 +20,9 @@ var (
 var ErrUnexpectedEndOfZipFile = errors.New("reached end of zip file before eocdr")
 
 type EndOfCentralDirectoryRecord struct {
-	NumberOfRecords int
-	Comment         string
+	NumberOfRecords        int
+	CentralDirectoryOffset int64
+	Comment                string
 }
 
 func (endRecord EndOfCentralDirectoryRecord) String() string {
@@ -41,6 +42,7 @@ func readEndOfCentralDirectoryRecord(r io.Reader) (*EndOfCentralDirectoryRecord,
 
 	record := EndOfCentralDirectoryRecord{}
 	record.NumberOfRecords = int(binary.LittleEndian.Uint16(recordBytes[10:12]))
+	record.CentralDirectoryOffset = int64(binary.LittleEndian.Uint32(recordBytes[16:20]))
 	commentLength := int(binary.LittleEndian.Uint16(recordBytes[20:22]))
 	commentBytes := make([]byte, commentLength)
 	err = readExact(r, commentBytes)
