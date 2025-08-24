@@ -14,6 +14,7 @@ type ZipFile struct {
 }
 
 var ErrDataAfterEndRecord = errors.New("unexpected data at end of file")
+var ErrCannotFindEndRecord = errors.New("cannot find end of central directory record")
 
 func readExact(r io.Reader, destination []byte) error {
 	n, err := io.ReadFull(r, destination)
@@ -35,9 +36,18 @@ func Parse(r io.ReadSeeker) (*ZipFile, error) {
 	seekBeginning := min(MaxEndOfCentralDirectoryRecordSize, fileSize)
 	r.Seek(-1*seekBeginning, io.SeekEnd)
 	possibleEndRecordBytes := make([]byte, MaxEndOfCentralDirectoryRecordSize)
+
 	_, err = r.Read(possibleEndRecordBytes)
+	if err != nil {
+		return nil, err
+	}
+
 	recordIndex := int64(bytes.LastIndex(possibleEndRecordBytes, EndOfCentralDirectoryRecordMagicNumber))
-	r.Seek(-1*(seekBeginning-recordIndex), io.SeekCurrent)
+	if recordIndex == -1 {
+		return nil, ErrCannotFindEndRecord
+	}
+
+	r.Seek(fileSize - seekBeginning + recordIndex, io.SeekStart)
 	eocdr, err := readEndOfCentralDirectoryRecord(r)
 	if err != nil {
 		return nil, err
