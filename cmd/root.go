@@ -1,17 +1,19 @@
 package cmd
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/spf13/cobra"
+)
 
 var rootCmd = &cobra.Command{
-	Use: "zip",
+	Use:   "zip",
 	Short: "Explore and manipulate zip files",
-	Long: "This is a toy utility to learn Go and work on something fairly low level.",
+	Long:  "This is a toy utility to learn Go and work on something fairly low level.",
 }
 
-func init()  {
+func init() {
 	rootCmd.AddCommand(exploreCmd)
 }
 
-func Execute() error  {
+func Execute() error {
 	return rootCmd.Execute()
 }
