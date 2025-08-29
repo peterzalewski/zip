@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"petezalew.ski/zip/zipfile"
 )
@@ -16,9 +18,11 @@ var exploreCmd = &cobra.Command{
 	Run:   runExplore,
 }
 
+var baseStyle = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder())
+
 type model struct {
 	zipfile *zipfile.ZipFile
-	cursor  int
+	table   table.Model
 }
 
 func (m model) Init() tea.Cmd {
@@ -26,32 +30,44 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
-		case "up", "k":
-			m.cursor = max(0, m.cursor-1)
-			return m, nil
-		case "down", "j":
-			m.cursor = min(len(m.zipfile.CentralDirectory)-1, m.cursor+1)
-			return m, nil
 		}
 	}
-
-	return m, nil
+	m.table, cmd = m.table.Update(msg)
+	return m, cmd
 }
 
 func (m model) View() string {
-	s := ""
+	return baseStyle.Render(m.table.View()) + "\n"
+}
 
-	sliceEnd := min(m.cursor+10, len(m.zipfile.CentralDirectory))
-	for _, header := range m.zipfile.LocalHeaders[m.cursor:sliceEnd] {
-		s += fmt.Sprintf("%+q\n", header.Name)
+func initialModel(zf *zipfile.ZipFile) model {
+	columns := []table.Column{
+		{Title: "Name", Width: 78},
 	}
+	rows := make([]table.Row, len(zf.CentralDirectory))
+	for i, file := range zf.CentralDirectory {
+		rows[i] = table.Row{
+			file.FileName,
+		}
+	}
+	t := table.New(
+		table.WithColumns(columns),
+		table.WithRows(rows),
+		table.WithFocused(true),
+		table.WithHeight(10),
+	)
+	t.SetStyles(table.DefaultStyles())
 
-	return s
+	return model{
+		zipfile: zf,
+		table:   t,
+	}
 }
 
 func runExplore(cmd *cobra.Command, args []string) {
@@ -69,7 +85,7 @@ func runExplore(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 
-		p := tea.NewProgram(model{cursor: 0, zipfile: zf})
+		p := tea.NewProgram(initialModel(zf))
 		if _, err := p.Run(); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
